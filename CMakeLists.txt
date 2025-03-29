@@ -15,6 +15,7 @@ endif()
 
 add_executable(imageviewer
     src/main.cpp
+    src/autoscrollwidget.cpp
 )
 
 target_include_directories(imageviewer PRIVATE ${CMAKE_SOURCE_DIR}/inc)

@@ -14,6 +14,7 @@
 #include <QMessageBox>
 #include <QCollator>
 #include <set>
+#include <autoscrollwidget.hpp>
 
 int main(int argc, char *argv[])
 {
@@ -58,12 +59,11 @@ int main(int argc, char *argv[])
     QMainWindow mainWindow;
     mainWindow.setWindowTitle(QApplication::translate("main", "Image Scroller - %1").arg(QFileInfo(folderPath).fileName()));
 
-    QScrollArea *scrollArea = new QScrollArea(&mainWindow);
+    AutoScrollWidget *scrollArea = new AutoScrollWidget(&mainWindow);
     scrollArea->setWidgetResizable(true); // Crucial: Allows the inner widget to resize horizontally
 
     QWidget *scrollContentWidget = new QWidget(); // This widget will contain the layout and labels
     QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContentWidget);
-    verticalLayout->setContentsMargins(5, 5, 5, 5); // Add some padding
     verticalLayout->setSpacing(0);                 // Remove spacing between images
 
     scrollContentWidget->setLayout(verticalLayout);
