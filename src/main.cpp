@@ -12,8 +12,8 @@
 #include <QCommandLineParser>
 #include <QImageReader>
 #include <QMessageBox>
-#include <set> // For efficient suffix lookup
-#include <iostream>
+#include <QCollator>
+#include <set>
 
 int main(int argc, char *argv[])
 {
@@ -84,9 +84,14 @@ int main(int argc, char *argv[])
 
 
     imageDir.setFilter(QDir::Files | QDir::Readable); // Filter for readable files
-    imageDir.setSorting(QDir::Name); // Sort files by name (optional)
+    imageDir.setSorting(QDir::NoSort); // Sort files by name (optional)
 
     QStringList fileList = imageDir.entryList();
+
+		QCollator collator;
+		collator.setNumericMode(true);
+		std::sort(fileList.begin(), fileList.end(), collator);
+
     int imagesLoaded = 0;
 
     for (const QString &fileName : fileList) {

@@ -11,7 +11,8 @@ qt_standard_project_setup()
 
 
 add_executable(imageviewer
-    main.cpp
+    src/main.cpp
 )
 
+target_include_directories(imageviewer PRIVATE ${CMAKE_SOURCE_DIR}/inc)
 target_link_libraries(imageviewer PRIVATE Qt6::Widgets ${WEBP_LIBRARIES})
