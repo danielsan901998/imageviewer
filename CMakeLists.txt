@@ -6,8 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
-find_library(WEBP_LIBRARIES webp)
 qt_standard_project_setup()
+
+if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
+	add_definitions(-DQT_NO_DEBUG_OUTPUT)
+endif()
 
 
 add_executable(imageviewer
@@ -15,4 +18,4 @@ add_executable(imageviewer
 )
 
 target_include_directories(imageviewer PRIVATE ${CMAKE_SOURCE_DIR}/inc)
-target_link_libraries(imageviewer PRIVATE Qt6::Widgets ${WEBP_LIBRARIES})
+target_link_libraries(imageviewer PRIVATE Qt6::Widgets)

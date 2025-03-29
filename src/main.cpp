@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     QWidget *scrollContentWidget = new QWidget(); // This widget will contain the layout and labels
     QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContentWidget);
     verticalLayout->setContentsMargins(5, 5, 5, 5); // Add some padding
-    verticalLayout->setSpacing(5);                 // Add spacing between images
+    verticalLayout->setSpacing(0);                 // Remove spacing between images
 
     scrollContentWidget->setLayout(verticalLayout);
     scrollArea->setWidget(scrollContentWidget); // Put the content widget inside the scroll area
@@ -80,7 +80,6 @@ int main(int argc, char *argv[])
          // Also add common variations if needed (though QImageReader often handles this)
         if (format == "jpeg") supportedSuffixes.insert("jpg");
     }
-		supportedSuffixes.insert("webp");
 
 
     imageDir.setFilter(QDir::Files | QDir::Readable); // Filter for readable files
@@ -106,12 +105,6 @@ int main(int argc, char *argv[])
                 QLabel *imageLabel = new QLabel();
                 imageLabel->setPixmap(pixmap);
                 imageLabel->setAlignment(Qt::AlignCenter); // Center the image in the label
-                // Optional: Scale large images down if needed (can be slow for many large images)
-                // if (pixmap.width() > scrollArea->width() - 20) { // Check against approximate scroll area width
-                //     imageLabel->setPixmap(pixmap.scaledToWidth(scrollArea->width() - 20, Qt::SmoothTransformation));
-                // } else {
-                //     imageLabel->setPixmap(pixmap);
-                // }
                 verticalLayout->addWidget(imageLabel);
                 imagesLoaded++;
                 qDebug() << "Loaded:" << imagePath;
@@ -119,7 +112,7 @@ int main(int argc, char *argv[])
                 qWarning() << "Failed to load image:" << imagePath;
             }
         } else {
-             // qDebug() << "Skipping non-supported file:" << fileName << " (suffix:" << suffix << ")";
+             qDebug() << "Skipping non-supported file:" << fileName << " (suffix:" << suffix << ")";
         }
     }
 
@@ -131,7 +124,6 @@ int main(int argc, char *argv[])
 
     // Add a stretch at the end to push images to the top if the total height is less than the window height
     verticalLayout->addStretch(1);
-    verticalLayout->setSpacing(0);
 
     // --- Show Window ---
     mainWindow.resize(800, 600); // Set a reasonable default size
