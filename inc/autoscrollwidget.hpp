@@ -12,6 +12,7 @@ class AutoScrollWidget : public QScrollArea {
 
 	protected:
 		void mousePressEvent(QMouseEvent *event) override;
+		void mouseReleaseEvent(QMouseEvent *event) override;
 		void mouseMoveEvent(QMouseEvent *event) override;
 
 		public slots:
@@ -21,6 +22,7 @@ class AutoScrollWidget : public QScrollArea {
 		QPoint startPos;
 		QPoint currentPos;
 		bool isAutoScrolling = false;
+		bool downpress = false;
 		QTimer *timer;
 };
 #endif /* AUTOSCROLLWIDGET_HPP */

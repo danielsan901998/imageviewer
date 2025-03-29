@@ -4,25 +4,28 @@ AutoScrollWidget::AutoScrollWidget(QWidget *parent) : QScrollArea(parent) {
 	timer = new QTimer(this);
 	connect(timer, &QTimer::timeout, this, &AutoScrollWidget::scrollStep);
 }
-
 void AutoScrollWidget::mousePressEvent(QMouseEvent *event) {
 	if (event->button() == Qt::RightButton) {
-		if (!isAutoScrolling) {
-			startPos = event->pos();
-			currentPos = event->pos();
-			isAutoScrolling = true;
-			timer->start(16); // 60 FPS
-		} else {
-			isAutoScrolling = false;
-			timer->stop();
-		}
+		downpress = true;
+		startPos = event->pos();
+		currentPos = event->pos();
+		isAutoScrolling = true;
+		timer->start(16); // 60 FPS
+	} else {
+		QWidget::mousePressEvent(event);
+	}
+}
+
+void AutoScrollWidget::mouseReleaseEvent(QMouseEvent *event) {
+	if (event->button() == Qt::RightButton) {
+		downpress = false;
 	} else {
 		QWidget::mousePressEvent(event);
 	}
 }
 
 void AutoScrollWidget::mouseMoveEvent(QMouseEvent *event) {
-	if (isAutoScrolling) {
+	if (downpress) {
 		currentPos = event->pos();
 	} else {
 		QWidget::mouseMoveEvent(event);
@@ -33,7 +36,13 @@ void AutoScrollWidget::scrollStep() {
 	if (!isAutoScrolling) return;
 
 	int dy = currentPos.y() - startPos.y();
-	if (dy == 0) return;
+	if (dy == 0){
+		if(isAutoScrolling && !downpress){
+			isAutoScrolling = false;
+			timer->stop();
+		}
+		return;
+	}
 
 	QScrollBar *vScrollBar = verticalScrollBar();
 	if (!vScrollBar) return;
