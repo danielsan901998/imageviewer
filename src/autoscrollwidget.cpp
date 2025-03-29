@@ -12,7 +12,7 @@ void AutoScrollWidget::mousePressEvent(QMouseEvent *event) {
 		isAutoScrolling = true;
 		timer->start(16); // 60 FPS
 	} else {
-		QWidget::mousePressEvent(event);
+		QScrollArea::mousePressEvent(event);
 	}
 }
 
@@ -20,7 +20,7 @@ void AutoScrollWidget::mouseReleaseEvent(QMouseEvent *event) {
 	if (event->button() == Qt::RightButton) {
 		downpress = false;
 	} else {
-		QWidget::mousePressEvent(event);
+		QScrollArea::mousePressEvent(event);
 	}
 }
 
@@ -28,7 +28,7 @@ void AutoScrollWidget::mouseMoveEvent(QMouseEvent *event) {
 	if (downpress) {
 		currentPos = event->pos();
 	} else {
-		QWidget::mouseMoveEvent(event);
+		QScrollArea::mouseMoveEvent(event);
 	}
 }
 
