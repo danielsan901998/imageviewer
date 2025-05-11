@@ -13,6 +13,7 @@
 #include <QImageReader>
 #include <QMessageBox>
 #include <QCollator>
+#include <qnamespace.h>
 #include <set>
 #include <autoscrollwidget.hpp>
 
@@ -93,6 +94,9 @@ int main(int argc, char *argv[])
 
 	int imagesLoaded = 0;
 
+	int containerWidth = QGuiApplication::primaryScreen()->size().width()-40;
+	qDebug() << "width:" << containerWidth;
+
 	for (const QString &fileName : fileList) {
 		QFileInfo fileInfo(imageDir.filePath(fileName));
 		QString suffix = fileInfo.suffix().toLower();
@@ -103,6 +107,10 @@ int main(int argc, char *argv[])
 			QPixmap pixmap;
 			if (pixmap.load(imagePath)) {
 				QLabel *imageLabel = new QLabel();
+				if (!pixmap.isNull() && pixmap.width() > containerWidth && containerWidth > 0) {
+					// Scale down while maintaining aspect ratio
+					pixmap = pixmap.scaledToWidth(containerWidth);
+				}
 				imageLabel->setPixmap(pixmap);
 				imageLabel->setAlignment(Qt::AlignCenter); // Center the image in the label
 				verticalLayout->addWidget(imageLabel);
