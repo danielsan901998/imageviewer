@@ -63,6 +63,9 @@ int main(int argc, char *argv[])
 	AutoScrollWidget *scrollArea = new AutoScrollWidget(&mainWindow);
 	scrollArea->setWidgetResizable(true); // Crucial: Allows the inner widget to resize horizontally
 
+	QList<QLabel*> imageLabels;
+	QList<QPixmap> originalPixmaps;
+
 	QWidget *scrollContentWidget = new QWidget(); // This widget will contain the layout and labels
 	QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContentWidget);
 	verticalLayout->setSpacing(0);                 // Remove spacing between images
@@ -114,6 +117,8 @@ int main(int argc, char *argv[])
 				imageLabel->setPixmap(pixmap);
 				imageLabel->setAlignment(Qt::AlignCenter); // Center the image in the label
 				verticalLayout->addWidget(imageLabel);
+				imageLabels.append(imageLabel);
+				originalPixmaps.append(pixmap);
 				imagesLoaded++;
 				qDebug() << "Loaded:" << imagePath;
 			} else {
@@ -135,6 +140,16 @@ int main(int argc, char *argv[])
 	// --- Show Window ---
 	mainWindow.resize(800, 600); // Set a reasonable default size
 	mainWindow.showFullScreen();
+
+	QObject::connect(scrollArea, &AutoScrollWidget::zoomRequested, [&](double scaleFactor) {
+		for (int i = 0; i < imageLabels.size(); ++i) {
+			QLabel* label = imageLabels.at(i);
+			const QPixmap& originalPixmap = originalPixmaps.at(i);
+			// Calculate new size based on original pixmap and scale factor
+			QSize newSize = originalPixmap.size() * scaleFactor;
+			label->setPixmap(originalPixmap.scaled(newSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+		}
+	});
 
 	return app.exec();
 }

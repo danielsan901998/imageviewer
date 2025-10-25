@@ -1,6 +1,7 @@
 #include <autoscrollwidget.hpp>
 
-AutoScrollWidget::AutoScrollWidget(QWidget *parent) : QScrollArea(parent) {
+AutoScrollWidget::AutoScrollWidget(QWidget *parent) : QScrollArea(parent), currentScale(1.0) {
+	setFocusPolicy(Qt::StrongFocus);
 	timer = new QTimer(this);
 	connect(timer, &QTimer::timeout, this, &AutoScrollWidget::scrollStep);
 }
@@ -48,4 +49,16 @@ void AutoScrollWidget::scrollStep() {
 	if (!vScrollBar) return;
 
 	vScrollBar->setValue(vScrollBar->value() + dy/5);
+}
+
+void AutoScrollWidget::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Plus || event->key() == Qt::Key_Equal) { // Qt::Key_Equal is often used for '+' without shift
+        currentScale *= 1.1; // Zoom in by 10%
+        emit zoomRequested(currentScale);
+    } else if (event->key() == Qt::Key_Minus) {
+        currentScale /= 1.1; // Zoom out by 10%
+        emit zoomRequested(currentScale);
+    } else {
+        QScrollArea::keyPressEvent(event);
+    }
 }
