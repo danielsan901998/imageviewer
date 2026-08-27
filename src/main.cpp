@@ -15,203 +15,299 @@
 #include <QCollator>
 #include <qnamespace.h>
 #include <set>
-#include <autoscrollwidget.hpp>
 
-int main(int argc, char *argv[])
-{
-	QApplication app(argc, argv);
-	QApplication::setApplicationName("ImageScroller");
-	QApplication::setApplicationVersion("1.0");
+#include "autoscrollwidget.hpp"
+#include "dirstore.hpp"
 
-	// --- Command Line Argument Parsing ---
-	QCommandLineParser parser;
-	parser.setApplicationDescription("Displays all images in a folder vertically stacked in a scrollable window.");
-	parser.addHelpOption();
-	parser.addVersionOption();
+// ---------------------------------------------------------------------------
+// Helpers (extracted from original inline lambdas)
+// ---------------------------------------------------------------------------
 
-	// Define the positional argument for the folder path
-	parser.addPositionalArgument("folder", QApplication::translate("main", "The folder containing images to display."));
+/// Check if a suffix is supported by QImageReader.
+static bool imageReaderSupported(const QString &suffix) {
+    static std::set<QString> supported;
+    static bool initialized = false;
+    if (!initialized) {
+        QList<QByteArray> formats = QImageReader::supportedImageFormats();
+        for (const QByteArray &f : formats) {
+            supported.insert(QString::fromLatin1(f).toLower());
+            if (f == "jpeg") supported.insert("jpg");
+        }
+        initialized = true;
+    }
+    return supported.count(suffix.toLower()) > 0;
+}
 
-	// Process the actual command line arguments given by the user
-	parser.process(app);
+/// Sort files using numeric collator.
+static void sortFileList(QStringList &list, QCollator &collator) {
+    collator.setNumericMode(true);
+    std::sort(list.begin(), list.end(), collator);
+}
 
-	const QStringList args = parser.positionalArguments();
-	if (args.isEmpty()) {
-		// Show help if no folder is provided
-		// Note: Using fprintf because QMessageBox might not work before app.exec() is reliably running everywhere
-		fprintf(stderr, "%s\n\n", qPrintable(QApplication::translate("main", "Error: No folder specified.")));
-		parser.showHelp(1); // Exits after showing help
-	}
+/// Build labels and pixmaps from a DirEntry's cached images.
+/// Returns the number of images loaded (0 if none).
+static int materializeFromCache(DirStore *store, int dirIndex,
+                                QVBoxLayout *layout, QList<QLabel *> &labels,
+                                QList<QPixmap> &pixmaps, int containerWidth) {
+    DirEntry *entry = store->entry(dirIndex);
+    if (!entry || !entry->valid || entry->images.isEmpty()) return 0;
 
-	// Collect all directory paths from arguments
-	QList<QString> dirPaths;
-	for (const QString &arg : args) {
-		dirPaths.append(arg);
-	}
+    int loaded = 0;
+    for (const QImage &img : std::as_const(entry->images)) {
+        QPixmap pm = QPixmap::fromImage(img);
+        QLabel *label = new QLabel();
+        label->setPixmap(pm);
+        label->setAlignment(Qt::AlignCenter);
+        layout->addWidget(label);
+        labels.append(label);
+        pixmaps.append(pm);
+        loaded++;
+    }
+    return loaded;
+}
 
-	int currentDirIndex = 0;
-	QString folderPath = dirPaths[currentDirIndex];
-	QDir imageDir(folderPath);
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
-	// Check if at least the first directory exists
-	if (!imageDir.exists()) {
-		fprintf(stderr, "%s\n", qPrintable(QApplication::translate("main", "The specified folder does not exist:\n%1").arg(folderPath)));
-		return 1;
-	}
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    QApplication::setApplicationName("ImageScroller");
+    QApplication::setApplicationVersion("1.0");
 
-	// --- Prepare Main Window and Scroll Area ---
-	QMainWindow mainWindow;
-	QString dirName = QFileInfo(folderPath).fileName();
-	if (dirPaths.size() > 1) {
-		mainWindow.setWindowTitle(QApplication::translate("main", "Image Scroller - %1 (%2/%3)").arg(dirName, QString::number(currentDirIndex + 1), QString::number(dirPaths.size())));
-	} else {
-		mainWindow.setWindowTitle(QApplication::translate("main", "Image Scroller - %1").arg(dirName));
-	}
+    // --- Command Line Argument Parsing ---
+    QCommandLineParser parser;
+    parser.setApplicationDescription(
+        "Displays all images in a folder vertically stacked in a scrollable window.");
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addPositionalArgument("folder",
+                                 QApplication::translate("main",
+                                         "The folder containing images to display."));
+    parser.process(app);
 
-	AutoScrollWidget *scrollArea = new AutoScrollWidget(&mainWindow);
-	scrollArea->setWidgetResizable(true); // Crucial: Allows the inner widget to resize horizontally
+    const QStringList args = parser.positionalArguments();
+    if (args.isEmpty()) {
+        fprintf(stderr, "%s\n\n", qPrintable(
+            QApplication::translate("main", "Error: No folder specified.")));
+        parser.showHelp(1);
+    }
 
-	QList<QLabel*> imageLabels;
-	QList<QPixmap> originalPixmaps;
+    QList<QString> dirPaths;
+    for (const QString &arg : args) {
+        dirPaths.append(arg);
+    }
 
-	QWidget *scrollContentWidget = new QWidget(); // This widget will contain the layout and labels
-	QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContentWidget);
-	verticalLayout->setSpacing(0);                 // Remove spacing between images
+    // Validate first directory exists.
+    int currentDirIndex = 0;
+    QDir firstDir(dirPaths[currentDirIndex]);
+    if (!firstDir.exists()) {
+        fprintf(stderr, "%s\n", qPrintable(QApplication::translate("main",
+            "The specified folder does not exist:\n%1").arg(dirPaths[currentDirIndex])));
+        return 1;
+    }
 
-	scrollContentWidget->setLayout(verticalLayout);
-	scrollArea->setWidget(scrollContentWidget); // Put the content widget inside the scroll area
-	mainWindow.setCentralWidget(scrollArea);    // Make the scroll area the main content of the window
+    // --- Create GUI ---
+    QMainWindow mainWindow;
+    QString dirName = QFileInfo(dirPaths[currentDirIndex]).fileName();
+    if (dirPaths.size() > 1) {
+        mainWindow.setWindowTitle(QApplication::translate("main",
+            "Image Scroller - %1 (%2/%3)").arg(
+                dirName, QString::number(currentDirIndex + 1),
+                QString::number(dirPaths.size())));
+    } else {
+        mainWindow.setWindowTitle(QApplication::translate("main",
+            "Image Scroller - %1").arg(dirName));
+    }
 
-	// --- Image Loading Helpers ---
+    AutoScrollWidget *scrollArea = new AutoScrollWidget(&mainWindow);
+    scrollArea->setWidgetResizable(true);
 
-	// Get supported image formats dynamically
-	std::set<QString> supportedSuffixes;
-	QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
-	for (const QByteArray &format : supportedFormats) {
-		supportedSuffixes.insert(QString::fromLatin1(format).toLower());
-		if (format == "jpeg") supportedSuffixes.insert("jpg");
-	}
+    QList<QLabel *> imageLabels;
+    QList<QPixmap> originalPixmaps;
 
-	int containerWidth = QGuiApplication::primaryScreen()->size().width()-40;
-	qDebug() << "width:" << containerWidth;
+    QWidget *scrollContentWidget = new QWidget();
+    QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContentWidget);
+    verticalLayout->setSpacing(0);
+    scrollContentWidget->setLayout(verticalLayout);
+    scrollArea->setWidget(scrollContentWidget);
+    mainWindow.setCentralWidget(scrollArea);
 
-	// Helper to sort files using numeric collator
-	auto sortFileList = [&](QStringList &list) {
-		QCollator collator;
-		collator.setNumericMode(true);
-		std::sort(list.begin(), list.end(), collator);
-	};
+    // --- Get screen width for scaling ---
+    int containerWidth = QGuiApplication::primaryScreen()->size().width() - 40;
+    qDebug() << "width:" << containerWidth;
 
-	// Helper to load images from a sorted file list into the scroll area
-	auto loadImages = [&](const QDir &dir, const QStringList &sortedFiles) -> int {
-		int loaded = 0;
-		for (const QString &fileName : sortedFiles) {
-			QFileInfo fileInfo(dir.filePath(fileName));
-			QString suffix = fileInfo.suffix().toLower();
+    // --- Create DirStore and configure it ---
+    DirStore *dirStore = new DirStore(&mainWindow);   // parent → lives on GUI thread
+    dirStore->setPaths(dirPaths);
+    dirStore->setContainerWidth(containerWidth);
+    dirStore->setCurrentDir(currentDirIndex);
 
-			if (!supportedSuffixes.count(suffix)) {
-				qDebug() << "Skipping non-supported file:" << fileName << "(suffix:" << suffix << ")";
-				continue;
-			}
+    // Connect the materialization signal (emitted after cache update on GUI thread).
+    QObject::connect(dirStore, &DirStore::entryReady,
+                     [&](int dirIndex, int generation) {
+        Q_UNUSED(generation);
+        if (dirIndex != currentDirIndex) return;  // only materialize if still current
 
-			QString imagePath = fileInfo.absoluteFilePath();
-			QPixmap pixmap;
-			if (pixmap.load(imagePath)) {
-				QLabel *imageLabel = new QLabel();
-				if (!pixmap.isNull() && pixmap.width() > containerWidth && containerWidth > 0) {
-					pixmap = pixmap.scaledToWidth(containerWidth);
-				}
-				imageLabel->setPixmap(pixmap);
-				imageLabel->setAlignment(Qt::AlignCenter);
-				verticalLayout->addWidget(imageLabel);
-				imageLabels.append(imageLabel);
-				originalPixmaps.append(pixmap);
-				loaded++;
-				qDebug() << "Loaded:" << imagePath;
-			} else {
-				qWarning() << "Failed to load image:" << imagePath;
-			}
-		}
-		return loaded;
-	};
+        DirEntry *entry = dirStore->entry(currentDirIndex);
+        if (!entry || entry->images.isEmpty()) return;
 
+        // Clear old widgets and rebuild from cache.
+        for (QLabel *label : imageLabels) {
+            verticalLayout->removeWidget(label);
+            delete label;
+        }
+        imageLabels.clear();
+        originalPixmaps.clear();
 
+        int loaded = materializeFromCache(dirStore, currentDirIndex,
+                                          verticalLayout, imageLabels,
+                                          originalPixmaps, containerWidth);
+        if (loaded == 0) return; // nothing to show yet.
 
-	// --- Initial Image Loading ---
-	imageDir.setFilter(QDir::Files | QDir::Readable);
-	QStringList fileList = imageDir.entryList();
-	sortFileList(fileList);
-	int imagesLoaded = loadImages(imageDir, fileList);
+        scrollArea->setCurrentScale(1.0);
+        scrollArea->verticalScrollBar()->setValue(0);
+    });
 
-	if (imagesLoaded == 0) {
-		qWarning() << "No supported image files found in the specified folder: " << folderPath;
-		return 0;
-	}
+    // --- Initial synchronous load of the first directory into cache ---
+    {
+        QDir imageDir(dirPaths[currentDirIndex]);
+        if (!imageDir.exists()) return 1;
+        imageDir.setFilter(QDir::Files | QDir::Readable);
+        QStringList fileList = imageDir.entryList();
 
-	// Add a stretch at the end to push images to the top if the total height is less than the window height
-	verticalLayout->addStretch(1);
+        QCollator collator;
+        sortFileList(fileList, collator);
 
-	// --- Show Window ---
-	mainWindow.resize(800, 600); // Set a reasonable default size
-	mainWindow.showFullScreen();
+        // Build DirEntry manually for the initial directory.
+        DirEntry *entry = new DirEntry();
+        entry->dirIndex = currentDirIndex;
+        entry->files = fileList;
+        int loadedCount = 0;
+        for (const QString &fileName : std::as_const(fileList)) {
+            QFileInfo fi(imageDir.filePath(fileName));
+            QString suffix = fi.suffix().toLower();
+            if (!imageReaderSupported(suffix)) continue;
 
-	// --- Directory Navigation Lambda ---
-	auto navigateToDirectory = [&](int direction) {
-		int newDirIndex = currentDirIndex + direction;
-		if (newDirIndex < 0 || newDirIndex >= dirPaths.size()) return;
-		currentDirIndex = newDirIndex;
-		QString newFolderPath = dirPaths[currentDirIndex];
+            QImage img;
+            if (!img.load(fi.absoluteFilePath())) continue;
+            if (img.width() > containerWidth && containerWidth > 0) {
+                img = img.scaledToWidth(containerWidth, Qt::SmoothTransformation);
+            }
+            entry->images.append(img);
+            loadedCount++;
+        }
+        entry->valid = true;
 
-		// Check directory exists
-		QDir newImageDir(newFolderPath);
-		if (!newImageDir.exists()) {
-			fprintf(stderr, "%s\n", qPrintable(QApplication::translate("main", "Directory does not exist:\n%1").arg(newFolderPath)));
-			return;
-		}
+        // Insert into cache via accessor.
+        dirStore->cache()[currentDirIndex] = entry;
 
-		// Clear existing widgets and images
-		for (QLabel *label : imageLabels) {
-			verticalLayout->removeWidget(label);
-			delete label;
-		}
-		imageLabels.clear();
-		originalPixmaps.clear();
+        if (loadedCount == 0) {
+            qWarning() << "No supported image files found in the specified folder:" << dirPaths[0];
+            return 0;
+        }
 
-		folderPath = newFolderPath;
-		imageDir.setPath(newFolderPath);
-		fileList = imageDir.entryList();
+        // Materialize initial view.
+        materializeFromCache(dirStore, currentDirIndex, verticalLayout,
+                             imageLabels, originalPixmaps, containerWidth);
+    }
 
-		// Update title
-		if (dirPaths.size() > 1) {
-			mainWindow.setWindowTitle(QApplication::translate("main", "Image Scroller - %1 (%2/%3)").arg(
-				QFileInfo(newFolderPath).fileName(), QString::number(currentDirIndex + 1), QString::number(dirPaths.size())));
-		}
+    // Add stretch at end.
+    verticalLayout->addStretch(1);
 
-		// Sort and reload images for new directory
-		sortFileList(fileList);
-		int loaded = loadImages(imageDir, fileList);
-		if (loaded == 0) {
-			qWarning() << "No supported image files found in:" << newFolderPath;
-		}
+    // --- Show Window ---
+    mainWindow.resize(800, 600);
+    mainWindow.showFullScreen();
 
-		// Reset zoom to 1.0 on directory change
-		scrollArea->setCurrentScale(1.0);
+    // --- Directory Navigation Lambda (uses buffer) ---
+    auto navigateToDirectory = [&](int direction) {
+        int newDirIndex = currentDirIndex + direction;
+        if (newDirIndex < 0 || newDirIndex >= dirPaths.size()) return;
 
-		// Scroll back to top
-		scrollArea->verticalScrollBar()->setValue(0);
-	};
+        QString oldFolderPath = dirPaths[currentDirIndex];
+        QString newFolderPath = dirPaths[newDirIndex];
 
-	QObject::connect(scrollArea, &AutoScrollWidget::zoomRequested, [&](double scaleFactor) {
-		for (int i = 0; i < imageLabels.size(); ++i) {
-			QLabel* label = imageLabels.at(i);
-			const QPixmap& originalPixmap = originalPixmaps.at(i);
-			// Calculate new size based on original pixmap and scale factor
-			QSize newSize = originalPixmap.size() * scaleFactor;
-			label->setPixmap(originalPixmap.scaled(newSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-		}
-	});
+        // Check directory exists.
+        QDir checkDir(newFolderPath);
+        if (!checkDir.exists()) {
+            fprintf(stderr, "%s\n", qPrintable(QApplication::translate("main",
+                "Directory does not exist:\n%1").arg(newFolderPath)));
+            return;
+        }
 
-	QObject::connect(scrollArea, &AutoScrollWidget::navigateRequested, navigateToDirectory);
+        currentDirIndex = newDirIndex;
+        dirStore->setCurrentDir(currentDirIndex);
 
-	return app.exec();
+        // Update title immediately (instant feedback).
+        QString newName = QFileInfo(newFolderPath).fileName();
+        if (dirPaths.size() > 1) {
+            mainWindow.setWindowTitle(QApplication::translate("main",
+                "Image Scroller - %1 (%2/%3)").arg(
+                    newName, QString::number(currentDirIndex + 1),
+                    QString::number(dirPaths.size())));
+        } else {
+            mainWindow.setWindowTitle(QApplication::translate("main",
+                "Image Scroller - %1").arg(newName));
+        }
+
+        // Check buffer hit.
+        if (dirStore->has(currentDirIndex)) {
+            DirEntry *entry = dirStore->entry(currentDirIndex);
+            if (entry && entry->valid && !entry->images.isEmpty()) {
+                // Fast path: swap from cache instantly.
+                for (QLabel *label : imageLabels) {
+                    verticalLayout->removeWidget(label);
+                    delete label;
+                }
+                imageLabels.clear();
+                originalPixmaps.clear();
+
+                int loaded = materializeFromCache(dirStore, currentDirIndex,
+                                                  verticalLayout, imageLabels,
+                                                  originalPixmaps, containerWidth);
+                if (loaded == 0) return;
+
+                scrollArea->setCurrentScale(1.0);
+                scrollArea->verticalScrollBar()->setValue(0);
+
+                // Preload neighbors after settling.
+                dirStore->preloadNeighbors();
+                return;
+            }
+        }
+
+        // Miss path: show placeholder, load async.
+        for (QLabel *label : imageLabels) {
+            verticalLayout->removeWidget(label);
+            delete label;
+        }
+        imageLabels.clear();
+        originalPixmaps.clear();
+
+        QLabel *placeholder = new QLabel(QString("Loading %1...").arg(newName));
+        placeholder->setAlignment(Qt::AlignCenter);
+        placeholder->setFont(QFont("", 18, QFont::DemiBold));
+        verticalLayout->addWidget(placeholder);
+        imageLabels.append(placeholder);
+
+        // Trigger async load for neighbors (current will be loaded if not cached).
+        dirStore->preloadNeighbors();
+    };
+
+    QObject::connect(scrollArea, &AutoScrollWidget::zoomRequested, [&](double scaleFactor) {
+        for (int i = 0; i < imageLabels.size(); ++i) {
+            QLabel *label = imageLabels.at(i);
+            const QPixmap &originalPixmap = originalPixmaps.at(i);
+            QSize newSize = originalPixmap.size() * scaleFactor;
+            label->setPixmap(originalPixmap.scaled(newSize, Qt::KeepAspectRatio,
+                                                   Qt::SmoothTransformation));
+        }
+    });
+
+    QObject::connect(scrollArea, &AutoScrollWidget::navigateRequested, navigateToDirectory);
+
+    // --- Seed initial neighbor preloads ---
+    dirStore->preloadNeighbors();
+
+    return app.exec();
 }
