@@ -1,10 +1,16 @@
 #include <autoscrollwidget.hpp>
+#include <QApplication>
 
 AutoScrollWidget::AutoScrollWidget(QWidget *parent) : QScrollArea(parent), currentScale(1.0) {
 	setFocusPolicy(Qt::StrongFocus);
 	timer = new QTimer(this);
 	connect(timer, &QTimer::timeout, this, &AutoScrollWidget::scrollStep);
 }
+
+void AutoScrollWidget::setCurrentScale(double scale) {
+	currentScale = scale;
+}
+
 void AutoScrollWidget::mousePressEvent(QMouseEvent *event) {
 	if (event->button() == Qt::RightButton) {
 		downpress = true;
@@ -58,6 +64,11 @@ void AutoScrollWidget::keyPressEvent(QKeyEvent *event) {
     } else if (event->key() == Qt::Key_Minus) {
         currentScale /= 1.1; // Zoom out by 10%
         emit zoomRequested(currentScale);
+    } else if (event->key() == Qt::Key_Escape) {
+        QApplication::quit();
+    } else if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right) {
+        int direction = (event->key() == Qt::Key_Left) ? -1 : 1;
+        emit navigateRequested(direction);
     } else {
         QScrollArea::keyPressEvent(event);
     }

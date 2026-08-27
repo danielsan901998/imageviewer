@@ -20,9 +20,11 @@ class AutoScrollWidget : public QScrollArea {
 
 	signals:
 		void zoomRequested(double scaleFactor);
+		void navigateRequested(int direction); // -1 for left, +1 for right
 
-		public slots:
-			void scrollStep();
+	public slots:
+		void scrollStep();
+		void setCurrentScale(double scale);
 
 	private:
 		QPoint startPos;
