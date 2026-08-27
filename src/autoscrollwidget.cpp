@@ -67,7 +67,7 @@ void AutoScrollWidget::keyPressEvent(QKeyEvent *event) {
     } else if (event->key() == Qt::Key_Escape) {
         QApplication::quit();
     } else if (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right) {
-        int direction = (event->key() == Qt::Key_Left) ? -1 : 1;
+        Direction direction = (event->key() == Qt::Key_Left) ? Direction::Left : Direction::Right;
         emit navigateRequested(direction);
     } else {
         QScrollArea::keyPressEvent(event);

@@ -220,8 +220,9 @@ int main(int argc, char *argv[]) {
     mainWindow.showFullScreen();
 
     // --- Directory Navigation Lambda (uses buffer) ---
-    auto navigateToDirectory = [&](int direction) {
-        int newDirIndex = currentDirIndex + direction;
+    auto navigateToDirectory = [&](Direction direction) {
+        int offset = (direction == Direction::Left) ? -1 : 1;
+        int newDirIndex = currentDirIndex + offset;
         if (newDirIndex < 0 || newDirIndex >= dirPaths.size()) return;
 
         QString oldFolderPath = dirPaths[currentDirIndex];

@@ -6,6 +6,8 @@
 #include <QTimer>
 #include <QScrollArea>
 
+enum class Direction { Left, Right };
+
 class AutoScrollWidget : public QScrollArea {
 	Q_OBJECT
 
@@ -20,7 +22,7 @@ class AutoScrollWidget : public QScrollArea {
 
 	signals:
 		void zoomRequested(double scaleFactor);
-		void navigateRequested(int direction); // -1 for left, +1 for right
+		void navigateRequested(Direction direction);
 
 	public slots:
 		void scrollStep();
