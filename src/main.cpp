@@ -310,5 +310,10 @@ int main(int argc, char *argv[]) {
     // --- Seed initial neighbor preloads ---
     dirStore->preloadNeighbors();
 
-    return app.exec();
+    int result = app.exec();
+
+    // Stop background workers before DirStore is destroyed.
+    dirStore->stop();
+
+    return result;
 }

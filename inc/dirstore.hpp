@@ -5,6 +5,8 @@
 #include <QImage>
 #include <QStringList>
 #include <QHash>
+#include <QFuture>
+#include <atomic>
 #include <set>
 #include <QCollator>
 
@@ -61,6 +63,9 @@ public slots:
     /// Start preloading neighbors of currentDir (called after every navigation).
     void preloadNeighbors();
 
+    /// Stop all pending workers and wait for them to finish. Call before destruction.
+    void stop();
+
 public:
     // Public accessor for main.cpp integration (cache is owned by DirStore on GUI thread).
     QHash<int, DirEntry *> &cache() { return mCache; }
@@ -87,6 +92,10 @@ private:
 
     /// Pixel budget cap (approx. 2–3× screen area). Used by eviction logic.
     static constexpr int kPixelBudget = 1920 * 1080 * 4; // ~6 MB raw pixels
+
+private:
+    std::atomic<bool> mStopped{false};   ///< true when object is being destroyed
+    QHash<int, QFuture<void>> mFutures;  ///< track worker futures per dirIndex
 };
 
 #endif // DIRSTORE_HPP

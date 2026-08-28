@@ -4,7 +4,19 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QtConcurrent>
-#include <algorithm>
+
+// ---------------------------------------------------------------------------
+// Stop: signal workers to abort, then wait for them.
+// Must be called before the object is destroyed.
+// ---------------------------------------------------------------------------
+
+void DirStore::stop() {
+    mStopped.store(true, std::memory_order_relaxed);
+    for (auto &future : mFutures) {
+        future.waitForFinished();
+    }
+    mFutures.clear();
+}
 
 // ---------------------------------------------------------------------------
 // DirStore implementation
@@ -58,6 +70,9 @@ void DirStore::workerLoadDirectory(int dirIndex, const QStringList &dirPaths,
 
     QList<QImage> images;
     for (const QString &fileName : std::as_const(files)) {
+        // Abort if the application is shutting down.
+        if (mStopped.load(std::memory_order_relaxed)) return;
+
         QFileInfo fi(dir.filePath(fileName));
         QString suffix = fi.suffix().toLower();
         if (!supportedSuffixes.count(suffix)) continue;
@@ -87,6 +102,9 @@ void DirStore::sortFileList(QStringList &list, QCollator &collator) {
 // ---------------------------------------------------------------------------
 
 void DirStore::onEntryLoaded(int dirIndex, int generation, QStringList files, QList<QImage> images) {
+    // Guard against post-destruction signal delivery.
+    if (mStopped.load(std::memory_order_relaxed)) return;
+
     // Stale-result protection.
     Q_UNUSED(generation);
     if (generation != mGeneration) return;
@@ -153,7 +171,9 @@ void DirStore::preloadNeighbors() {
             workerLoadDirectory(idx, paths, containerWidth, suffixes, collator, gen);
         };
 
-        (void)QtConcurrent::run(task);  // fire-and-forget
+        // Track the future so we can wait on it during shutdown.
+        QFuture<void> future = QtConcurrent::run(task);
+        mFutures[idx] = std::move(future);
     };
 
     launchWorker(left);
