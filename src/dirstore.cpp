@@ -133,6 +133,8 @@ void DirStore::onEntryLoaded(int dirIndex, int generation, QStringList files, QL
 void DirStore::preloadNeighbors() {
     if (mDirPaths.isEmpty()) return;
 
+    mGeneration++;  // bump once so both neighbors share the same generation token.
+
     int left = mCurrentDir - 1;
     int right = mCurrentDir + 1;
 
@@ -142,8 +144,6 @@ void DirStore::preloadNeighbors() {
     auto launchWorker = [&](int idx) {
         if (idx < 0 || idx >= mDirPaths.size()) return;
         if (mCache.contains(idx)) return;  // already cached or loading
-
-        mGeneration++;  // bump generation so stale results from old gens are discarded.
 
         QStringList paths(mDirPaths);
         std::set<QString> suffixes = mSupportedSuffixes;
