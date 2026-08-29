@@ -35,5 +35,7 @@ class AutoScrollWidget : public QScrollArea {
 		bool downpress = false;
 		QTimer *timer;
 		double currentScale = 1.0;
+		double scrollSpeed = 3.0;
+		int keyboardScrollDir = 0; // +1 down, -1 up
 };
 #endif /* AUTOSCROLLWIDGET_HPP */
